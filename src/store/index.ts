@@ -6,13 +6,16 @@ import type { Product } from "~/types";
 
 const storeApi = createApi({
 	reducerPath: "products",
-	baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:3000/api" }),
+	baseQuery: fetchBaseQuery({ baseUrl: "/" }),
 	endpoints: (builder) => ({
 		getProducts: builder.query<Product[], void>({
-			query: () => GET_PRODUCTS || [],
+			query: () => GET_PRODUCTS + ".json",
 		}),
-		getProduct: builder.query<Product, string | number>({
-			query: (id) => GET_PRODUCTS + `/${id}`,
+		getProduct: builder.query<Product | null, string | number>({
+			query: () => GET_PRODUCTS + `.json`,
+			transformResponse: (response: Product[], _, id) => {
+				return response.find((product) => product.id.toString() === id) || null;
+			},
 		}),
 	}),
 });
@@ -20,13 +23,25 @@ const storeApi = createApi({
 const cartSlice = createSlice({
 	name: "cart",
 	initialState: {
-		products: [] as Product[],
+		products: [] as (Product & { quantity: number })[],
 	},
 	reducers: {
-		addToCart: (state, action) => {
-			state.products.push(action.payload);
+		addToCart: (state, action: { payload: Product }) => {
+			const existingProductIndex = state.products.findIndex(
+				(product) => product.id === action.payload.id,
+			);
+
+			if (existingProductIndex > -1) {
+				const product = state.products[existingProductIndex];
+				state.products.splice(existingProductIndex, 1, {
+					...product,
+					quantity: product.quantity + 1,
+				});
+			} else {
+				state.products.push({ ...action.payload, quantity: 1 });
+			}
 		},
-		removeFromCart: (state, action) => {
+		removeFromCart: (state, action: { payload: Product & { quantity: number } }) => {
 			state.products = state.products.filter((p) => p.id !== action.payload.id);
 		},
 	},
